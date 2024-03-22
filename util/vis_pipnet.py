@@ -77,88 +77,89 @@ def visualize_topk(net, projectloader, num_classes, device, foldername, args: ar
                             replace_choice = random.choice([0, 1])
                             if replace_choice > 0:
                                 topks[p][-1] = (i, pooled[p].item())
-
-    alli = []
-    prototypes_not_used = []
-    for p in topks.keys():
-        found = False
-        for idx, score in topks[p]:
-            alli.append(idx)
-            if score > 0.1:  #in case prototypes have fewer than k well-related patches
-                found = True
-        if not found:
-            prototypes_not_used.append(p)
-
-    print(len(prototypes_not_used), "prototypes do not have any similarity score > 0.1. Will be ignored in visualisation.")
-    abstained = 0
-    # Show progress on progress bar
-    img_iter = tqdm(enumerate(projectloader),
-                    total=len(projectloader),
-                    mininterval=50.,
-                    desc='Visualizing topk',
-                    ncols=0)
-    for i, (xs, ys) in img_iter: #shuffle is false so should lead to same order as in imgs
-        if i in alli:
-            xs, ys = xs.to(device), ys.to(device)
-            for p in topks.keys():
-                if p not in prototypes_not_used:
-                    for idx, score in topks[p]:
-                        if idx == i:
-                            # Use the model to classify this batch of input data
-                            with torch.no_grad():
-                                softmaxes, pooled, out = net(xs, inference=True) #softmaxes has shape (1, num_prototypes, W, H)
-                                outmax = torch.amax(out,dim=1)[0] #shape ([1]) because batch size of projectloader is 1
-                                if outmax.item() == 0.:
-                                    abstained+=1
-                            
-                            # Take the max per prototype.                             
-                            max_per_prototype, max_idx_per_prototype = torch.max(softmaxes, dim=0)
-                            max_per_prototype_h, max_idx_per_prototype_h = torch.max(max_per_prototype, dim=1)
-                            max_per_prototype_w, max_idx_per_prototype_w = torch.max(max_per_prototype_h, dim=1) #shape (num_prototypes)
-                            
-                            c_weight = torch.max(classification_weights[:,p]) #ignore prototypes that are not relevant to any class
-                            if (c_weight > 1e-10) or ('pretrain' in foldername):
-                                
-                                h_idx = max_idx_per_prototype_h[p, max_idx_per_prototype_w[p]]
-                                w_idx = max_idx_per_prototype_w[p]
-                                
-                                img_to_open = imgs[i]
-                                if isinstance(img_to_open, tuple) or isinstance(img_to_open, list): #dataset contains tuples of (img,label)
-                                    img_to_open = img_to_open[0]
-                                
-                                image = transforms.Resize(size=(args.image_size, args.image_size))(Image.open(img_to_open))
-                                img_tensor = transforms.ToTensor()(image).unsqueeze_(0) #shape (1, 3, h, w)
-                                h_coor_min, h_coor_max, w_coor_min, w_coor_max = get_img_coordinates(args.image_size, softmaxes.shape, patchsize, skip, h_idx, w_idx)
-                                img_tensor_patch = img_tensor[0, :, h_coor_min:h_coor_max, w_coor_min:w_coor_max]
-                                        
-                                saved[p]+=1
-                                tensors_per_prototype[p].append(img_tensor_patch)
-
-    print("Abstained: ", abstained, flush=True)
-    all_tensors = []
-    for p in range(net.module._num_prototypes):
-        if saved[p]>0:
-            # add text next to each topk-grid, to easily see which prototype it is
-            text = "P "+str(p)
-            txtimage = Image.new("RGB", (img_tensor_patch.shape[1],img_tensor_patch.shape[2]), (0, 0, 0))
-            draw = D.Draw(txtimage)
-            draw.text((img_tensor_patch.shape[0]//2, img_tensor_patch.shape[1]//2), text, anchor='mm', fill="white")
-            txttensor = transforms.ToTensor()(txtimage)
-            tensors_per_prototype[p].append(txttensor)
-            # save top-k image patches in grid
-            try:
-                grid = torchvision.utils.make_grid(tensors_per_prototype[p], nrow=k+1, padding=1)
-                torchvision.utils.save_image(grid,os.path.join(dir,"grid_topk_%s.png"%(str(p))))
-                if saved[p]>=k:
-                    all_tensors+=tensors_per_prototype[p]
-            except:
-                pass
-    if len(all_tensors)>0:
-        grid = torchvision.utils.make_grid(all_tensors, nrow=k+1, padding=1)
-        torchvision.utils.save_image(grid,os.path.join(dir,"grid_topk_all.png"))
-    else:
-        print("Pretrained prototypes not visualized. Try to pretrain longer.", flush=True)
     return topks
+
+    # alli = []
+    # prototypes_not_used = []
+    # for p in topks.keys():
+    #     found = False
+    #     for idx, score in topks[p]:
+    #         alli.append(idx)
+    #         if score > 0.1:  #in case prototypes have fewer than k well-related patches
+    #             found = True
+    #     if not found:
+    #         prototypes_not_used.append(p)
+
+    # print(len(prototypes_not_used), "prototypes do not have any similarity score > 0.1. Will be ignored in visualisation.")
+    # abstained = 0
+    # # Show progress on progress bar
+    # img_iter = tqdm(enumerate(projectloader),
+    #                 total=len(projectloader),
+    #                 mininterval=50.,
+    #                 desc='Visualizing topk',
+    #                 ncols=0)
+    # for i, (xs, ys) in img_iter: #shuffle is false so should lead to same order as in imgs
+    #     if i in alli:
+    #         xs, ys = xs.to(device), ys.to(device)
+    #         for p in topks.keys():
+    #             if p not in prototypes_not_used:
+    #                 for idx, score in topks[p]:
+    #                     if idx == i:
+    #                         # Use the model to classify this batch of input data
+    #                         with torch.no_grad():
+    #                             softmaxes, pooled, out = net(xs, inference=True) #softmaxes has shape (1, num_prototypes, W, H)
+    #                             outmax = torch.amax(out,dim=1)[0] #shape ([1]) because batch size of projectloader is 1
+    #                             if outmax.item() == 0.:
+    #                                 abstained+=1
+                            
+    #                         # Take the max per prototype.                             
+    #                         max_per_prototype, max_idx_per_prototype = torch.max(softmaxes, dim=0)
+    #                         max_per_prototype_h, max_idx_per_prototype_h = torch.max(max_per_prototype, dim=1)
+    #                         max_per_prototype_w, max_idx_per_prototype_w = torch.max(max_per_prototype_h, dim=1) #shape (num_prototypes)
+                            
+    #                         c_weight = torch.max(classification_weights[:,p]) #ignore prototypes that are not relevant to any class
+    #                         if (c_weight > 1e-10) or ('pretrain' in foldername):
+                                
+    #                             h_idx = max_idx_per_prototype_h[p, max_idx_per_prototype_w[p]]
+    #                             w_idx = max_idx_per_prototype_w[p]
+                                
+    #                             img_to_open = imgs[i]
+    #                             if isinstance(img_to_open, tuple) or isinstance(img_to_open, list): #dataset contains tuples of (img,label)
+    #                                 img_to_open = img_to_open[0]
+                                
+    #                             image = transforms.Resize(size=(args.image_size, args.image_size))(Image.open(img_to_open))
+    #                             img_tensor = transforms.ToTensor()(image).unsqueeze_(0) #shape (1, 3, h, w)
+    #                             h_coor_min, h_coor_max, w_coor_min, w_coor_max = get_img_coordinates(args.image_size, softmaxes.shape, patchsize, skip, h_idx, w_idx)
+    #                             img_tensor_patch = img_tensor[0, :, h_coor_min:h_coor_max, w_coor_min:w_coor_max]
+                                        
+    #                             saved[p]+=1
+    #                             tensors_per_prototype[p].append(img_tensor_patch)
+
+    # print("Abstained: ", abstained, flush=True)
+    # all_tensors = []
+    # for p in range(net.module._num_prototypes):
+    #     if saved[p]>0:
+    #         # add text next to each topk-grid, to easily see which prototype it is
+    #         text = "P "+str(p)
+    #         txtimage = Image.new("RGB", (img_tensor_patch.shape[1],img_tensor_patch.shape[2]), (0, 0, 0))
+    #         draw = D.Draw(txtimage)
+    #         draw.text((img_tensor_patch.shape[0]//2, img_tensor_patch.shape[1]//2), text, anchor='mm', fill="white")
+    #         txttensor = transforms.ToTensor()(txtimage)
+    #         tensors_per_prototype[p].append(txttensor)
+    #         # save top-k image patches in grid
+    #         try:
+    #             grid = torchvision.utils.make_grid(tensors_per_prototype[p], nrow=k+1, padding=1)
+    #             torchvision.utils.save_image(grid,os.path.join(dir,"grid_topk_%s.png"%(str(p))))
+    #             if saved[p]>=k:
+    #                 all_tensors+=tensors_per_prototype[p]
+    #         except:
+    #             pass
+    # if len(all_tensors)>0:
+    #     grid = torchvision.utils.make_grid(all_tensors, nrow=k+1, padding=1)
+    #     torchvision.utils.save_image(grid,os.path.join(dir,"grid_topk_all.png"))
+    # else:
+    #     print("Pretrained prototypes not visualized. Try to pretrain longer.", flush=True)
+    # return topks
         
 
 def visualize(net, projectloader, num_classes, device, foldername, args: argparse.Namespace):
