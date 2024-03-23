@@ -108,11 +108,8 @@ def calculate_loss(proto_features, pooled, out, ys1, align_pf_weight, t_weight, 
     embv1 = pf1.flatten(start_dim=2).permute(0,2,1).flatten(end_dim=1)
     
     # a_loss_pf = (align_loss(embv1, embv2.detach())+ align_loss(embv2, embv1.detach()))/2.
-    # a_loss_pf = (align_loss_euclidean(embv1, embv2.detach())+ align_loss_euclidean(embv2, embv1.detach()))/2.
-    # tanh_loss = -(torch.log(torch.tanh(torch.sum(pooled1,dim=0))+EPS).mean() + torch.log(torch.tanh(torch.sum(pooled2,dim=0))+EPS).mean())/2.
-    align_pf_weight = 1.
-    a_loss_pf = (ntxent_loss(embv1, embv2.detach())+ ntxent_loss(embv2, embv1.detach()))/2.
-    tanh_loss = 0
+    a_loss_pf = (align_loss_euclidean(embv1, embv2.detach())+ align_loss_euclidean(embv2, embv1.detach()))/2.
+    tanh_loss = -(torch.log(torch.tanh(torch.sum(pooled1,dim=0))+EPS).mean() + torch.log(torch.tanh(torch.sum(pooled2,dim=0))+EPS).mean())/2.
 
     if not finetune:
         loss = align_pf_weight*a_loss_pf
@@ -170,13 +167,16 @@ def align_loss_euclidean(inputs, targets, EPS=1e-12):
     assert inputs.shape == targets.shape
     assert targets.requires_grad == False
 
-    # Compute Euclidean distance between corresponding vectors
-    squared_diff = torch.pow(inputs - targets, 2)
-    euclidean_distance = torch.sqrt(torch.sum(squared_diff, dim=1))
+    # Squaring the element-wise difference
+    squared_diff = (inputs - targets)**2
+
+    # Summing along the dimension axis (dimension)
+    summed = torch.einsum('bi,bi->b', squared_diff, squared_diff)
     
-    # Compute loss as the negative logarithm of Euclidean distance
-    loss = -torch.log(euclidean_distance + EPS).mean()
-    return loss
+    # Taking the square root
+    distance = torch.log(torch.sqrt(summed)).mean()
+    
+    return distance
 
 # Ablation study: NT-Xent loss
 def ntxent_loss(inputs, targets, EPS=1e-12):
