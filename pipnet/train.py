@@ -107,9 +107,12 @@ def calculate_loss(proto_features, pooled, out, ys1, align_pf_weight, t_weight, 
     embv2 = pf2.flatten(start_dim=2).permute(0,2,1).flatten(end_dim=1)
     embv1 = pf1.flatten(start_dim=2).permute(0,2,1).flatten(end_dim=1)
     
-    #a_loss_pf = (align_loss(embv1, embv2.detach())+ align_loss(embv2, embv1.detach()))/2.
-    a_loss_pf = (align_loss_euclidean(embv1, embv2.detach())+ align_loss_euclidean(embv2, embv1.detach()))/2.
-    tanh_loss = -(torch.log(torch.tanh(torch.sum(pooled1,dim=0))+EPS).mean() + torch.log(torch.tanh(torch.sum(pooled2,dim=0))+EPS).mean())/2.
+    # a_loss_pf = (align_loss(embv1, embv2.detach())+ align_loss(embv2, embv1.detach()))/2.
+    # a_loss_pf = (align_loss_euclidean(embv1, embv2.detach())+ align_loss_euclidean(embv2, embv1.detach()))/2.
+    # tanh_loss = -(torch.log(torch.tanh(torch.sum(pooled1,dim=0))+EPS).mean() + torch.log(torch.tanh(torch.sum(pooled2,dim=0))+EPS).mean())/2.
+    align_pf_weight = 1.
+    a_loss_pf = (ntxent_loss(embv1, embv2.detach())+ ntxent_loss(embv2, embv1.detach()))/2.
+    tanh_loss = 0
 
     if not finetune:
         loss = align_pf_weight*a_loss_pf
@@ -174,3 +177,16 @@ def align_loss_euclidean(inputs, targets, EPS=1e-12):
     # Compute loss as the negative logarithm of Euclidean distance
     loss = -torch.log(euclidean_distance + EPS).mean()
     return loss
+
+# Ablation study: NT-Xent loss
+def ntxent_loss(inputs, targets, EPS=1e-12):
+    z = torch.cat([inputs, targets], dim=0)
+    sim_matrix = torch.mm(z, z.t())
+    pos_sim = torch.diag(sim_matrix, z.size(0) // 2)
+    neg_sim = sim_matrix.clone()
+    neg_sim.fill_diagonal_(float('-inf')) # fill diagonal with -inf
+    neg_sim = torch.nn.Softmax(neg_sim / 0.5)
+    neg_sim = torch.sum(sim_matrix * neg_sim, dim=1)
+    loss = -torch.log(pos_sim / (pos_sim + neg_sim))
+
+    return torch.mean(loss)
