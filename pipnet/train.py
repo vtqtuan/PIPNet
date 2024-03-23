@@ -115,7 +115,8 @@ def calculate_loss(proto_features, pooled, out, ys1, align_pf_weight, t_weight, 
         loss += t_weight * tanh_loss
     
     if not pretrain:
-        softmax_inputs = torch.log1p(out**net_normalization_multiplier)
+        # softmax_inputs = torch.log1p(out**net_normalization_multiplier)
+        softmax_inputs = torch.clone(out)
         class_loss = criterion(F.log_softmax((softmax_inputs),dim=1),ys)
         
         if finetune:
