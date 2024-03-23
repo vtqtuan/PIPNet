@@ -91,7 +91,7 @@ def run_pipnet(args=None):
             epoch = 0
             checkpoint = torch.load(args.state_dict_dir_net,map_location=device)
             # net.load_state_dict(checkpoint['model_state_dict'],strict=True) 
-            new_classification_weight = torch.zeros([200, 2048], dtype=torch.float32)
+            new_classification_weight = torch.zeros([200, 768], dtype=torch.float32)
             checkpoint['model_state_dict']['module._classification.weight'] = new_classification_weight
             net.load_state_dict(checkpoint['model_state_dict'], strict=False)
             print("Pretrained network loaded", flush=True)
