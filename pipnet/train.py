@@ -174,7 +174,7 @@ def align_loss_euclidean(inputs, targets, EPS=1e-12):
     summed = torch.einsum('bi,bi->b', squared_diff, squared_diff)
     
     # Taking the square root
-    distance = torch.log(torch.sqrt(summed)).mean()
+    distance = torch.log(torch.sqrt(summed) + 1).mean()
     
     return distance
 
