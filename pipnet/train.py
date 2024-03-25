@@ -108,8 +108,10 @@ def calculate_loss(proto_features, pooled, out, ys1, align_pf_weight, t_weight, 
     embv1 = pf1.flatten(start_dim=2).permute(0,2,1).flatten(end_dim=1)
     
     # a_loss_pf = (align_loss(embv1, embv2.detach())+ align_loss(embv2, embv1.detach()))/2.
-    a_loss_pf = (align_loss_euclidean(embv1, embv2.detach())+ align_loss_euclidean(embv2, embv1.detach()))/2.
+    # a_loss_pf = (align_loss_euclidean(embv1, embv2.detach())+ align_loss_euclidean(embv2, embv1.detach()))/2.
     tanh_loss = -(torch.log(torch.tanh(torch.sum(pooled1,dim=0))+EPS).mean() + torch.log(torch.tanh(torch.sum(pooled2,dim=0))+EPS).mean())/2.
+
+    a_loss_pf = 0.01
 
     if not finetune:
         loss = align_pf_weight*a_loss_pf
